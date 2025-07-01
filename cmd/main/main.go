@@ -2,16 +2,15 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
-
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	peerstore "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 const (
@@ -21,6 +20,7 @@ const (
 
 func main() {
 	node, err := libp2p.New(
+		libp2p.ListenAddrStrings("/ip4/192.168.100.13/tcp/2000"),
 		libp2p.Ping(false),
 	)
 	if err != nil {
