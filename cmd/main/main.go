@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	//"context"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -16,7 +16,7 @@ import (
 	peerstore "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
-	"github.com/multiformats/go-multiaddr"
+	//"github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -76,30 +76,30 @@ type discoveryNotifee struct {
 func (n *discoveryNotifee) HandlePeerFound(peerInfo peer.AddrInfo) {
 	fmt.Println("found peer", peerInfo.String())
 
-	peerMA, err := multiaddr.NewMultiaddr(peerInfo.String())
-
-	if err != nil {
-		panic(err)
-	}
-
-	peerAddrInfo, err := peer.AddrInfoFromP2pAddr(peerMA)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := n.h.Connect(context.Background(), *peerAddrInfo); err != nil {
-		panic(err)
-	}
-	fmt.Println("Connected to", peerAddrInfo.String())
-
-	// Open a stream with the given peer.
-	s, err := n.h.NewStream(context.Background(), peerAddrInfo.ID, protocolID)
-	if err != nil {
-		panic(err)
-	}
-
-	go writeCounter(s)
-	go readCounter(s)
+	// peerMA, err := multiaddr.NewMultiaddr(peerInfo.String())
+	//
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// peerAddrInfo, err := peer.AddrInfoFromP2pAddr(peerMA)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// if err := n.h.Connect(context.Background(), *peerAddrInfo); err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Println("Connected to", peerAddrInfo.String())
+	//
+	// // Open a stream with the given peer.
+	// s, err := n.h.NewStream(context.Background(), peerAddrInfo.ID, protocolID)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// go writeCounter(s)
+	// go readCounter(s)
 }
 
 func writeCounter(s network.Stream) {
