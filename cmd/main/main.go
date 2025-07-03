@@ -2,6 +2,7 @@ package main
 
 import (
 	//"context"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -27,6 +28,7 @@ const (
 func main() {
 	node, err := libp2p.New(
 		libp2p.Ping(false),
+		libp2p.ListenAddrStrings("/ip4/192.168.100.160/tcp/0"),
 	)
 	if err != nil {
 		panic(err)
@@ -74,7 +76,9 @@ type discoveryNotifee struct {
 }
 
 func (n *discoveryNotifee) HandlePeerFound(peerInfo peer.AddrInfo) {
-	fmt.Println("found peer", peerInfo.String())
+	fmt.Println("found peer", peerInfo.Addrs)
+
+	peerMA := peerInfo.Addrs[2]
 
 	// peerMA, err := multiaddr.NewMultiaddr(peerInfo.String())
 	//
@@ -82,24 +86,24 @@ func (n *discoveryNotifee) HandlePeerFound(peerInfo peer.AddrInfo) {
 	// 	panic(err)
 	// }
 	//
-	// peerAddrInfo, err := peer.AddrInfoFromP2pAddr(peerMA)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	// if err := n.h.Connect(context.Background(), *peerAddrInfo); err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("Connected to", peerAddrInfo.String())
-	//
-	// // Open a stream with the given peer.
-	// s, err := n.h.NewStream(context.Background(), peerAddrInfo.ID, protocolID)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	// go writeCounter(s)
-	// go readCounter(s)
+	peerAddrInfo, err := peer.AddrInfoFromP2pAddr(peerMA)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := n.h.Connect(context.Background(), *peerAddrInfo); err != nil {
+		panic(err)
+	}
+	fmt.Println("Connected to", peerAddrInfo.String())
+
+	// Open a stream with the given peer.
+	s, err := n.h.NewStream(context.Background(), peerAddrInfo.ID, protocolID)
+	if err != nil {
+		panic(err)
+	}
+
+	go writeCounter(s)
+	go readCounter(s)
 }
 
 func writeCounter(s network.Stream) {
