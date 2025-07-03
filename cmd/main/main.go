@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -76,31 +75,24 @@ type discoveryNotifee struct {
 func (n *discoveryNotifee) HandlePeerFound(peerInfo peer.AddrInfo) {
 	fmt.Println("found peer", peerInfo.Addrs)
 
-	peerAddrInfos, err := peer.AddrInfosFromP2pAddrs(peerInfo.Addrs...)
+	// Connect to the peer
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := n.h.Connect(ctx, peerInfo); err != nil {
+		fmt.Printf("Failed to connect to peer %s: %v\n", peerInfo.ID, err)
+		return
+	}
+	fmt.Printf("Connected to peer %s\n", peerInfo.ID)
+
+	// Open a stream to the peer
+	s, err := n.h.NewStream(ctx, peerInfo.ID, protocolID)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to open stream to peer %s: %v\n", peerInfo.ID, err)
+		return
 	}
-
-	for i := 0; i < len(peerAddrInfos); i++ {
-		peerAddrInfo := peerAddrInfos[i]
-
-		if !strings.HasPrefix(peerAddrInfo.String(), "/ip4/192.168.100.160/tcp/") {
-			continue
-		}
-
-		if err := n.h.Connect(context.Background(), *&peerAddrInfo); err != nil {
-			panic(err)
-		}
-		fmt.Println("Connected to", peerAddrInfo.String())
-
-		s, err := n.h.NewStream(context.Background(), peerAddrInfo.ID, protocolID)
-		if err != nil {
-			panic(err)
-		}
-
-		go writeCounter(s)
-		go readCounter(s)
-	}
+	go writeCounter(s)
+	go readCounter(s)
 }
 
 func writeCounter(s network.Stream) {
