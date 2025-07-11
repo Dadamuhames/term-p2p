@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"term-p2p/internals/components/container"
+	"term-p2p/internals/components/app"
 	"term-p2p/internals/p2p"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,9 +11,9 @@ import (
 
 func main() {
 	peerChan := p2p.StartConnection()
-	model := container.NewContainer(peerChan)
+	app := app.InitApp(peerChan)
 
-	_, err := tea.NewProgram(model, tea.WithAltScreen()).Run()
+	_, err := tea.NewProgram(&app, tea.WithAltScreen()).Run()
 
 	if err != nil {
 		fmt.Println("Error running program:", err)

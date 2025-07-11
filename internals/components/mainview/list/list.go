@@ -1,7 +1,7 @@
 package list
 
 import (
-	"fmt"
+	"term-p2p/internals/common"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -69,31 +69,31 @@ type model struct {
 	list         list.Model
 	keys         *listKeyMap
 	delegateKeys *delegateKeyMap
+	peerChan     chan peerstore.AddrInfo
 }
 
 type customListItem struct {
-	id       int
+	id       string
 	title    string
 	subtitle string
 }
 
-func (c customListItem) Id() int             { return c.id }
+func (c customListItem) peerSelectCmd() tea.Msg {
+	return PeerSelectMsg(c)
+}
+
+func (c customListItem) Id() string          { return c.id }
 func (c customListItem) Title() string       { return c.title }
 func (c customListItem) Description() string { return c.subtitle }
 func (c customListItem) FilterValue() string { return c.title }
 
-func NewListModel() model {
+func NewListModel(peerChan chan peerstore.AddrInfo) model {
 	var (
 		listKeys     = newListKeyMap()
 		delegateKeys = newDelegateKeyMap()
 	)
 
-	// Make initial list of items
-	const numItems = 3
-	items := make([]list.Item, numItems)
-	for i := 0; i < numItems; i++ {
-		items[i] = customListItem{id: i, title: fmt.Sprintf("item %d", i), subtitle: "subtitle"}
-	}
+	items := make([]list.Item, 0)
 
 	// Setup list
 	delegate := newItemDelegate(delegateKeys)
@@ -122,6 +122,7 @@ func NewListModel() model {
 		list:         groceryList,
 		keys:         listKeys,
 		delegateKeys: delegateKeys,
+		peerChan:     peerChan,
 	}
 }
 
@@ -139,13 +140,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case peerstore.AddrInfo:
 		itemsList := m.list.Items()
 
-		newItem := customListItem{title: msg.ID.String(), subtitle: "new peer"}
+		newItem := customListItem{id: msg.ID.String(), title: msg.ID.String(), subtitle: "new peer"}
 
 		itemsList = append(itemsList, newItem)
 
 		cmd := m.list.SetItems(itemsList)
 
 		cmds = append(cmds, cmd)
+		cmds = append(cmds, common.GetNextPeer(m.peerChan))
 
 	case tea.KeyMsg:
 		if m.list.FilterState() == list.Filtering {

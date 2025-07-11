@@ -1,9 +1,10 @@
-package container
+package mainview
 
 import (
 	"strings"
 	"term-p2p/internals/common"
-	"term-p2p/internals/components/list"
+	"term-p2p/internals/components/mainview/list"
+	"term-p2p/internals/components/peerview"
 	"term-p2p/internals/components/tab"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,7 +12,7 @@ import (
 	peerstore "github.com/libp2p/go-libp2p/core/peer"
 )
 
-type Container struct {
+type MainView struct {
 	tab           tea.Model
 	content       []tea.Model
 	currentWindow int
@@ -20,15 +21,10 @@ type Container struct {
 	peerChan      chan peerstore.AddrInfo
 }
 
-func NewContainer(peerChan chan peerstore.AddrInfo) Container {
+func NewMainView(peerChan chan peerstore.AddrInfo) MainView {
 	tabs := []string{"Peers", "Chats"}
 
 	tab := tab.NewTabModel(tabs)
-
-	content := []tea.Model{
-		list.NewListModel(),
-		list.NewListModel(),
-	}
 
 	peers := make(chan peerstore.AddrInfo)
 
@@ -39,17 +35,29 @@ func NewContainer(peerChan chan peerstore.AddrInfo) Container {
 		}
 	}()
 
-	return Container{tab: tab, content: content, currentWindow: 0, peerChan: peers}
+	content := []tea.Model{
+		list.NewListModel(peers),
+		list.NewListModel(peers),
+	}
+
+	return MainView{tab: tab, content: content, currentWindow: 0, peerChan: peers}
 }
 
-func (c Container) Init() tea.Cmd {
+func (c MainView) Init() tea.Cmd {
 	return common.GetNextPeer(c.peerChan)
 }
 
-func (c Container) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (c MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tab.ActiveTabMsg:
 		c.currentWindow = int(msg)
+
+	case list.PeerSelectMsg:
+		peerChat := peerview.InitialModel()
+
+		return peerChat.Update(msg)
 
 	case tea.WindowSizeMsg:
 		c.windowWidth = msg.Width
@@ -58,24 +66,26 @@ func (c Container) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updated, _ := c.content[i].Update(msg)
 			c.content[i] = updated
 		}
-
-	case tea.KeyMsg:
-		switch keypress := msg.String(); keypress {
-		case "ctrl+c", "q":
-			return c, tea.Quit
-		}
 	}
 
+	// update tab
 	tabUpdated, cmd := c.tab.Update(msg)
+
+	cmds = append(cmds, cmd)
 
 	c.tab = tabUpdated
 
-	c.content[c.currentWindow], _ = c.content[c.currentWindow].Update(msg)
+	// update content
+	contentUpdated, contentCmd := c.content[c.currentWindow].Update(msg)
 
-	return c, cmd
+	c.content[c.currentWindow] = contentUpdated
+
+	cmds = append(cmds, contentCmd)
+
+	return c, tea.Batch(cmds...)
 }
 
-func (c Container) View() string {
+func (c MainView) View() string {
 	var stringBuilder strings.Builder
 	contentModel := c.content[c.currentWindow]
 

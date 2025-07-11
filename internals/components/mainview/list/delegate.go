@@ -1,21 +1,21 @@
 package list
 
 import (
-	"strconv"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type PeerSelectMsg customListItem
+
 func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
 
 	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
-		var title string
+		var item customListItem
 
 		if i, ok := m.SelectedItem().(customListItem); ok {
-			title = strconv.Itoa(i.Id())
+			item = i
 		} else {
 			return nil
 		}
@@ -24,15 +24,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 		case tea.KeyMsg:
 			switch {
 			case key.Matches(msg, keys.choose):
-				return m.NewStatusMessage(statusMessageStyle("You chose " + title))
-
-			case key.Matches(msg, keys.remove):
-				index := m.Index()
-				m.RemoveItem(index)
-				if len(m.Items()) == 0 {
-					keys.remove.SetEnabled(false)
-				}
-				return m.NewStatusMessage(statusMessageStyle("Deleted " + title))
+				return item.peerSelectCmd
 			}
 		}
 
