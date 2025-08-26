@@ -3,11 +3,13 @@ package peerview
 import (
 	"fmt"
 	"strings"
+	"term-p2p/internals/components/mainview/list"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/libp2p/go-libp2p/core/network"
 )
 
 const gap = "\n\n"
@@ -22,14 +24,18 @@ type PeerMessage struct {
 }
 
 type PeerView struct {
-	viewport    viewport.Model
-	messages    []PeerMessage
-	textarea    textarea.Model
-	senderStyle lipgloss.Style
-	err         error
+	peerInfo     list.CustomListItem
+	peerStream   *network.Stream
+	viewport     viewport.Model
+	messages     []PeerMessage
+	textarea     textarea.Model
+	senderStyle  lipgloss.Style
+	windowWidth  int
+	windowHeight int
+	err          error
 }
 
-func InitialModel() PeerView {
+func InitialModel(item list.CustomListItem, peerStream *network.Stream) PeerView {
 	ta := textarea.New()
 	ta.Placeholder = "Send a message..."
 	ta.Focus()
@@ -45,7 +51,7 @@ func InitialModel() PeerView {
 
 	ta.ShowLineNumbers = false
 
-	vp := viewport.New(30, 5)
+	vp := viewport.New(30, 28)
 	vp.SetContent(`Welcome to the chat room!
 Type a message and press Enter to send.`)
 
@@ -57,6 +63,8 @@ Type a message and press Enter to send.`)
 		viewport:    vp,
 		senderStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
 		err:         nil,
+		peerInfo:    item,
+		peerStream:  peerStream,
 	}
 }
 
@@ -87,10 +95,11 @@ func (m PeerView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.viewport.Width = msg.Width
-		m.textarea.SetWidth(msg.Width)
-		m.viewport.Height = msg.Height - m.textarea.Height() - lipgloss.Height(gap)
-
+		m.windowWidth = msg.Width
+		m.windowHeight = msg.Height
+		m.viewport.Width = msg.Width / 2
+		m.textarea.SetWidth(msg.Width / 2)
+		m.viewport.Height = msg.Height
 		if len(m.messages) > 0 {
 			// Wrap content before setting it.
 			m.viewport.SetContent(
@@ -104,6 +113,10 @@ func (m PeerView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Println(m.textarea.Value())
 			return m, tea.Quit
 		case tea.KeyEnter:
+			if m.textarea.Value() == "" {
+				break
+			}
+
 			m.messages = append(
 				m.messages,
 				PeerMessage{message: m.textarea.Value(), sender: "You"},
@@ -124,10 +137,22 @@ func (m PeerView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m PeerView) View() string {
-	return fmt.Sprintf(
-		"%s%s%s",
-		m.viewport.View(),
-		gap,
-		m.textarea.View(),
+	marginLeft := 40
+
+	contentStyle := lipgloss.NewStyle().
+		MarginLeft(marginLeft).
+		Align(lipgloss.Center, lipgloss.Center)
+
+	composedView := lipgloss.JoinVertical(
+		lipgloss.Bottom,
+		contentStyle.Render(m.viewport.View()),
+		contentStyle.Render(m.textarea.View()),
 	)
+
+	containerStyle := lipgloss.NewStyle().
+		Width(m.windowWidth).
+		Height(m.windowHeight).
+		Align(lipgloss.Center, lipgloss.Bottom)
+
+	return containerStyle.Render(composedView)
 }

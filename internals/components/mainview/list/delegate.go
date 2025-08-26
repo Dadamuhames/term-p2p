@@ -6,15 +6,17 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type PeerSelectMsg customListItem
+type PeerSelectMsg struct {
+	Item CustomListItem
+}
 
 func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
 
 	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
-		var item customListItem
+		var item CustomListItem
 
-		if i, ok := m.SelectedItem().(customListItem); ok {
+		if i, ok := m.SelectedItem().(CustomListItem); ok {
 			item = i
 		} else {
 			return nil

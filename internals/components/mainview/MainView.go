@@ -1,46 +1,56 @@
 package mainview
 
 import (
-	"strings"
+	"context"
 	"term-p2p/internals/common"
 	"term-p2p/internals/components/mainview/list"
 	"term-p2p/internals/components/peerview"
 	"term-p2p/internals/components/tab"
+	"term-p2p/internals/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/libp2p/go-libp2p/core/host"
 	peerstore "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
 type MainView struct {
+	host          *host.Host
 	tab           tea.Model
 	content       []tea.Model
 	currentWindow int
 	windowWidth   int
 	windowHeight  int
 	peerChan      chan peerstore.AddrInfo
+	activePeers   *common.ActivePeers
+	messageChan   *(chan common.Message)
 }
 
-func NewMainView(peerChan chan peerstore.AddrInfo) MainView {
-	tabs := []string{"Peers", "Chats"}
+func NewMainView(
+	host *host.Host,
+	peerChan *(chan peerstore.AddrInfo),
+	activePeers *common.ActivePeers,
+	messageChan *(chan common.Message)) MainView {
+
+	tabs := []string{"Discover", "Requests"}
 
 	tab := tab.NewTabModel(tabs)
 
-	peers := make(chan peerstore.AddrInfo)
-
-	go func() {
-		for {
-			peer := <-peerChan
-			peers <- peer
-		}
-	}()
-
 	content := []tea.Model{
-		list.NewListModel(peers),
-		list.NewListModel(peers),
+		list.NewListModel(*peerChan),
+		list.NewListModel(*peerChan),
 	}
 
-	return MainView{tab: tab, content: content, currentWindow: 0, peerChan: peers}
+	return MainView{
+		host:          host,
+		tab:           tab,
+		content:       content,
+		currentWindow: 0,
+		peerChan:      *peerChan,
+		activePeers:   activePeers,
+		messageChan:   messageChan,
+	}
 }
 
 func (c MainView) Init() tea.Cmd {
@@ -55,7 +65,37 @@ func (c MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.currentWindow = int(msg)
 
 	case list.PeerSelectMsg:
-		peerChat := peerview.InitialModel()
+		peerId := msg.Item.Id()
+
+		peerStream, exists := (*c.activePeers).GetPeerById(peerId)
+
+		if !exists {
+			ctx := context.Background()
+
+			peerAddrs := msg.Item.Addrs()
+
+			for i := 0; i < len(peerAddrs); i++ {
+				addr := peerAddrs[i]
+
+				peer, err := peerstore.AddrInfoFromP2pAddr(addr)
+
+				if err != nil {
+					continue
+				}
+
+				if err := (*c.host).Connect(ctx, *peer); err != nil {
+					panic(err)
+				}
+
+				peerStream, err = (*c.host).NewStream(ctx, peer.ID, protocol.ID(config.ProtocolID))
+
+				(*c.activePeers).AddPeer(peerId, peerStream, c.messageChan)
+
+				break
+			}
+		}
+
+		peerChat := peerview.InitialModel(msg.Item, &peerStream)
 
 		return peerChat.Update(msg)
 
@@ -86,7 +126,6 @@ func (c MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c MainView) View() string {
-	var stringBuilder strings.Builder
 	contentModel := c.content[c.currentWindow]
 
 	tabView := c.tab.View()
@@ -107,6 +146,5 @@ func (c MainView) View() string {
 		Height(c.windowHeight).
 		Align(lipgloss.Center, lipgloss.Center)
 
-	stringBuilder.WriteString(containerStyle.Render(composedView))
-	return stringBuilder.String()
+	return containerStyle.Render(composedView)
 }

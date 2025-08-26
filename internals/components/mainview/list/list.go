@@ -1,6 +1,7 @@
 package list
 
 import (
+	"fmt"
 	"term-p2p/internals/common"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -8,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	peerstore "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 var (
@@ -72,20 +74,22 @@ type model struct {
 	peerChan     chan peerstore.AddrInfo
 }
 
-type customListItem struct {
+type CustomListItem struct {
 	id       string
 	title    string
 	subtitle string
+	addrs    []multiaddr.Multiaddr
 }
 
-func (c customListItem) peerSelectCmd() tea.Msg {
-	return PeerSelectMsg(c)
+func (c CustomListItem) peerSelectCmd() tea.Msg {
+	return PeerSelectMsg{Item: c}
 }
 
-func (c customListItem) Id() string          { return c.id }
-func (c customListItem) Title() string       { return c.title }
-func (c customListItem) Description() string { return c.subtitle }
-func (c customListItem) FilterValue() string { return c.title }
+func (c CustomListItem) Id() string                   { return c.id }
+func (c CustomListItem) Title() string                { return c.title }
+func (c CustomListItem) Description() string          { return c.subtitle }
+func (c CustomListItem) FilterValue() string          { return c.title }
+func (c CustomListItem) Addrs() []multiaddr.Multiaddr { return c.addrs }
 
 func NewListModel(peerChan chan peerstore.AddrInfo) model {
 	var (
@@ -137,10 +141,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.list.SetSize(msg.Width, msg.Height/2)
 
+	case common.Message:
+		items := m.list.Items()
+
+		for i := 0; i < len(items); i++ {
+			item := items[i].(CustomListItem)
+
+			if item.Id() == msg.FromPeerId {
+				title := fmt.Sprintf("%s •", item.Title())
+
+				editedItem := CustomListItem{
+					id:       item.Id(),
+					title:    title,
+					subtitle: item.Description(),
+					addrs:    item.Addrs(),
+				}
+
+				editListCmd := m.list.SetItem(i, editedItem)
+
+				cmds = append(cmds, editListCmd)
+			}
+		}
+
 	case peerstore.AddrInfo:
 		itemsList := m.list.Items()
 
-		newItem := customListItem{id: msg.ID.String(), title: msg.ID.String(), subtitle: "new peer"}
+		newItem := CustomListItem{
+			id:       msg.ID.String(),
+			title:    msg.ID.String(),
+			subtitle: "new peer",
+			addrs:    msg.Addrs,
+		}
 
 		itemsList = append(itemsList, newItem)
 

@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	peerChan := p2p.StartConnection()
-	app := app.InitApp(peerChan)
+	host, peerChan, evntChan := p2p.StartConnection()
+	app := app.InitApp(&host, peerChan, evntChan)
 
 	_, err := tea.NewProgram(&app, tea.WithAltScreen()).Run()
 

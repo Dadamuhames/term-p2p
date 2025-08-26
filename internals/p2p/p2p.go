@@ -3,6 +3,7 @@ package p2p
 import (
 	"encoding/binary"
 	"fmt"
+	"term-p2p/internals/config"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -14,11 +15,6 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 )
 
-const (
-	protocolID         = "/term-p2p/1.0.0"
-	discoveryNamespace = "term-p2p"
-)
-
 type discoveryNotifee struct {
 	PeerChan chan peer.AddrInfo
 }
@@ -27,14 +23,14 @@ func (n *discoveryNotifee) HandlePeerFound(peerInfo peer.AddrInfo) {
 	n.PeerChan <- peerInfo
 }
 
-func InitDiscoveryServer(node host.Host) chan peerstore.AddrInfo {
+func InitDiscoveryServer(node host.Host) *(chan peerstore.AddrInfo) {
 	notifee := discoveryNotifee{}
 	notifee.PeerChan = make(chan peer.AddrInfo)
 
 	// look for peers
 	discoveryService := mdns.NewMdnsService(
 		node,
-		discoveryNamespace,
+		config.DiscoveryNamespace,
 		&notifee,
 	)
 
@@ -42,15 +38,26 @@ func InitDiscoveryServer(node host.Host) chan peerstore.AddrInfo {
 		panic(err)
 	}
 
-	return notifee.PeerChan
+	return &notifee.PeerChan
 }
 
-func handleStream(stream network.Stream) {
-	go readData(stream)
-	go writeData(stream)
+// Custom messages
+type NewStreamMsg struct {
+	id     peer.ID
+	stream network.Stream
 }
 
-func StartConnection() chan peerstore.AddrInfo {
+func (n NewStreamMsg) Id() peer.ID {
+	return n.id
+}
+
+func (n NewStreamMsg) Stream() network.Stream {
+	return n.stream
+}
+
+func StartConnection() (host.Host, *(chan peerstore.AddrInfo), *(chan NewStreamMsg)) {
+	var eventCh = make(chan NewStreamMsg)
+
 	node, err := libp2p.New(
 		libp2p.Ping(false),
 	)
@@ -58,18 +65,12 @@ func StartConnection() chan peerstore.AddrInfo {
 		panic(err)
 	}
 
-	node.SetStreamHandler(protocol.ID(protocolID), handleStream)
+	node.SetStreamHandler(protocol.ID(config.ProtocolID), func(s network.Stream) {
+		eventCh <- NewStreamMsg{id: s.Conn().RemotePeer(), stream: s}
+	})
 
-	// print the node's listening addresses
-	// peerInfo := peerstore.AddrInfo{
-	// 	ID:    node.ID(),
-	// 	Addrs: node.Addrs(),
-	// }
-	// addrs, err := peerstore.AddrInfoToP2pAddrs(&peerInfo)
-	// fmt.Println("libp2p node address:", addrs)
-	//
 	// decover peers
-	return InitDiscoveryServer(node)
+	return node, InitDiscoveryServer(node), &eventCh
 }
 
 func writeData(s network.Stream) {
